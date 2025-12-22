@@ -11,44 +11,62 @@
             font-family: 'Nanum Gothic', sans-serif;
             background-color: #fdfcf0;
             color: #5d4037;
+            -webkit-tap-highlight-color: transparent;
         }
         .question-card {
             background-color: #ffffff;
-            border-radius: 20px;
+            border-radius: 18px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
             border-left: 8px solid #d1c4e9;
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
         }
         .option-btn {
-            transition: all 0.2s;
+            transition: all 0.2s ease;
             border: 2px solid #fce4ec;
+            background-color: white;
+            cursor: pointer;
         }
         .option-btn:hover {
-            background-color: #fce4ec;
+            background-color: #fdf2f7;
+            transform: translateY(-1px);
         }
         .option-btn.selected {
             background-color: #f8bbd0;
             border-color: #f06292;
             color: #880e4f;
             font-weight: bold;
+            box-shadow: 0 4px 6px rgba(240, 98, 146, 0.2);
         }
         .result-card {
             background-color: #e8f5e9;
             border: 2px dashed #81c784;
             border-radius: 25px;
+            animation: fadeIn 0.5s ease-out;
         }
         .btn-submit {
-            background-color: #fce4ec;
+            background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%);
             color: #880e4f;
-            transition: transform 0.2s, background-color 0.2s;
+            transition: all 0.3s ease;
         }
         .btn-submit:hover {
-            background-color: #f8bbd0;
+            background: linear-gradient(135deg, #f8bbd0 0%, #f48fb1 100%);
             transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(136, 14, 79, 0.15);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #d1c4e9;
+            border-radius: 10px;
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4 md:p-8 custom-scrollbar">
     <div class="max-w-2xl mx-auto">
         <header class="text-center mb-10">
             <h1 class="text-4xl font-bold mb-2">🎨 Pastel MBTI Test</h1>
@@ -59,32 +77,34 @@
             <!-- Questions will be injected here -->
         </div>
 
-        <div class="mt-10 mb-20">
-            <button id="submit-btn" class="btn-submit w-full py-4 rounded-full font-bold text-lg shadow-md">
+        <div class="mt-10 mb-20 text-center">
+            <button id="submit-btn" class="btn-submit w-full py-4 rounded-full font-bold text-lg shadow-md max-w-sm mx-auto">
                 결과 확인하기 ✨
             </button>
         </div>
 
         <!-- Result Modal -->
-        <div id="result-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-3xl max-w-lg w-full p-8 overflow-hidden relative">
+        <div id="result-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-3xl max-w-lg w-full p-8 overflow-hidden shadow-2xl relative">
                 <div class="result-card p-6 text-center">
-                    <h2 id="mbti-type" class="text-3xl font-bold text-green-700 mb-2">ENTP</h2>
-                    <p class="text-lg mb-4">당신의 성격 유형입니다!</p>
-                    <hr class="border-green-200 mb-4">
-                    <div id="theme-info">
-                        <p class="font-bold text-xl mb-2">추천 이미지 테마: <span id="theme-name">키워드</span></p>
-                        <p id="theme-desc" class="text-gray-600 italic">설명문구</p>
+                    <p class="text-gray-600 mb-1">당신의 성격 유형은</p>
+                    <h2 id="mbti-type" class="text-5xl font-bold text-green-700 mb-4 tracking-widest">ENTP</h2>
+                    <hr class="border-green-200 mb-6 w-1/2 mx-auto">
+                    <div id="theme-info" class="space-y-3">
+                        <p class="text-sm text-gray-500 uppercase tracking-tighter">추천 이미지 테마</p>
+                        <p id="theme-name" class="font-bold text-2xl text-gray-800">키워드</p>
+                        <p id="theme-desc" class="text-gray-600 leading-relaxed px-4 break-keep">설명문구</p>
                     </div>
                 </div>
-                <button onclick="closeModal()" class="mt-6 w-full py-3 bg-gray-100 rounded-xl font-bold text-gray-700 hover:bg-gray-200">
-                    다시 하기
+                <button onclick="closeModal()" class="mt-8 w-full py-4 bg-gray-50 rounded-2xl font-bold text-gray-600 hover:bg-gray-100 transition-colors">
+                    다시 하기 🔄
                 </button>
             </div>
         </div>
     </div>
 
     <script>
+        // Questions with standardized type identifiers
         const questions = [
             { q: "주말에 집에서 쉬는 것보다 밖에서 사람들을 만나는 것이 더 에너지가 생기나요?", type: "EI" },
             { q: "새로운 사람과 대화를 시작하는 것이 어렵지 않은가요?", type: "EI" },
@@ -119,7 +139,7 @@
             "ENTJ": { "theme": "정상의 설산 풍경", "desc": "목표를 향해 나아가는 당신의 포부를 닮은 웅장한 설산이 어울립니다." }
         };
 
-        const answers = Array(questions.length).fill(null);
+        let answers = Array(questions.length).fill(null);
 
         function renderQuestions() {
             const container = document.getElementById('quiz-container');
@@ -127,11 +147,11 @@
                 <div class="question-card p-6 mb-6">
                     <p class="text-lg font-bold mb-4">질문 ${idx + 1}. ${q.q}</p>
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-2">
-                        <button onclick="selectOption(${idx}, 2)" class="option-btn p-2 rounded-lg text-sm" id="opt-${idx}-2">매우 그렇다</button>
-                        <button onclick="selectOption(${idx}, 1)" class="option-btn p-2 rounded-lg text-sm" id="opt-${idx}-1">그렇다</button>
-                        <button onclick="selectOption(${idx}, 0)" class="option-btn p-2 rounded-lg text-sm" id="opt-${idx}-0">보통이다</button>
-                        <button onclick="selectOption(${idx}, -1)" class="option-btn p-2 rounded-lg text-sm" id="opt-${idx}--1">아니다</button>
-                        <button onclick="selectOption(${idx}, -2)" class="option-btn p-2 rounded-lg text-sm" id="opt-${idx}--2">매우 아니다</button>
+                        <button onclick="selectOption(${idx}, 2)" class="option-btn p-3 rounded-xl text-sm" id="opt-${idx}-2">매우 그렇다</button>
+                        <button onclick="selectOption(${idx}, 1)" class="option-btn p-3 rounded-xl text-sm" id="opt-${idx}-1">그렇다</button>
+                        <button onclick="selectOption(${idx}, 0)" class="option-btn p-3 rounded-xl text-sm" id="opt-${idx}-0">보통이다</button>
+                        <button onclick="selectOption(${idx}, -1)" class="option-btn p-3 rounded-xl text-sm" id="opt-${idx}--1">아니다</button>
+                        <button onclick="selectOption(${idx}, -2)" class="option-btn p-3 rounded-xl text-sm" id="opt-${idx}--2">매우 아니다</button>
                     </div>
                 </div>
             `).join('');
@@ -148,8 +168,13 @@
         }
 
         document.getElementById('submit-btn').onclick = function() {
-            if (answers.includes(null)) {
-                alert("모든 질문에 답해주세요!");
+            const unanswered = answers.map((a, i) => a === null ? i + 1 : null).filter(a => a !== null);
+            
+            if (unanswered.length > 0) {
+                alert(`아직 답변하지 않은 질문이 있습니다: ${unanswered.join(', ')}번`);
+                // Scroll to the first unanswered question
+                const firstIdx = unanswered[0] - 1;
+                document.querySelectorAll('.question-card')[firstIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
 
@@ -157,27 +182,27 @@
 
             questions.forEach((q, idx) => {
                 const score = answers[idx];
-                const char1 = q.type[0];
-                const char2 = q.type[1];
+                const char1 = q.type[0]; // Positive side (e.g., E, S, T, J)
+                const char2 = q.type[1]; // Negative side (e.g., I, N, F, P)
                 
-                // score가 양수면 질문의 type 중 첫 번째 글자(예: E)에 합산
-                // score가 음수면 질문의 type 중 두 번째 글자(예: I)에 합산
                 if (score > 0) {
-                    scores[char1] += Math.abs(score);
+                    scores[char1] += score;
                 } else if (score < 0) {
                     scores[char2] += Math.abs(score);
                 } else {
-                    // 0점인 경우 양쪽 지표에 0.5점씩 균등 배분하여 편향 방지
+                    // Neutral: give minimal push to both to avoid zero total ties
                     scores[char1] += 0.5;
                     scores[char2] += 0.5;
                 }
             });
 
-            let result = "";
-            result += scores.E >= scores.I ? "E" : "I";
-            result += scores.S >= scores.N ? "S" : "N";
-            result += scores.T >= scores.F ? "T" : "F";
-            result += scores.J >= scores.P ? "J" : "P";
+            const getResult = (p1, p2) => scores[p1] >= scores[p2] ? p1 : p2;
+            
+            const result = 
+                getResult('E', 'I') + 
+                getResult('S', 'N') + 
+                getResult('T', 'F') + 
+                getResult('J', 'P');
 
             showResult(result);
         };
@@ -187,12 +212,13 @@
             document.getElementById('theme-name').innerText = mbtiInfo[type].theme;
             document.getElementById('theme-desc').innerText = mbtiInfo[type].desc;
             document.getElementById('result-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
         }
 
         window.closeModal = function() {
-            // 초기화 후 다시 시작
-            answers.fill(null);
+            answers = Array(questions.length).fill(null);
             document.getElementById('result-modal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
             renderQuestions();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
