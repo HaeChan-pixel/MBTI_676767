@@ -91,13 +91,13 @@
             { q: "파티나 모임에서 중심에 서는 것을 즐기나요?", type: "EI" },
             { q: "미래에 대한 상상보다 현재 일어나고 있는 일에 더 집중하는 편인가요?", type: "SN" },
             { q: "어떤 일을 할 때 세부적인 지침이 있는 것을 선호하나요?", type: "SN" },
-            { q: "현실적인 해결책보다는 창의적이고 비유적인 표현을 더 좋아하나요?", type: "NS" }, // N/S flipped logic for simplicity in JS loop
+            { q: "현실적인 해결책보다는 창의적이고 비유적인 표현을 더 좋아하나요?", type: "NS" },
             { q: "논리적으로 옳고 그름을 따지는 것이 감정을 배려하는 것보다 중요한가요?", type: "TF" },
             { q: "결정을 내릴 때 객관적인 데이터가 감정적인 호소보다 더 설득력 있게 느껴지나요?", type: "TF" },
-            { q: "친구의 고민을 들을 때 해결책을 제시하기보다 먼저 공감해주나요?", type: "FT" }, // F/T flipped
+            { q: "친구의 고민을 들을 때 해결책을 제시하기보다 먼저 공감해주나요?", type: "FT" },
             { q: "여행을 갈 때 시간 단위로 꼼꼼하게 계획을 세우는 편인가요?", type: "JP" },
             { q: "마감 기한이 임박해서 일을 처리하기보다 미리 여유 있게 끝내는 것을 선호하나요?", type: "JP" },
-            { q: "정해진 규칙보다는 상황에 따라 유연하게 대처하는 것이 편한가요?", type: "PJ" } // P/J flipped
+            { q: "정해진 규칙보다는 상황에 따라 유연하게 대처하는 것이 편한가요?", type: "PJ" }
         ];
 
         const mbtiInfo = {
@@ -139,11 +139,12 @@
 
         window.selectOption = function(qIdx, score) {
             answers[qIdx] = score;
-            // Update UI
             for (let s of [2, 1, 0, -1, -2]) {
-                document.getElementById(`opt-${qIdx}-${s}`).classList.remove('selected');
+                const btn = document.getElementById(`opt-${qIdx}-${s}`);
+                if (btn) btn.classList.remove('selected');
             }
-            document.getElementById(`opt-${qIdx}-${score}`).classList.add('selected');
+            const selectedBtn = document.getElementById(`opt-${qIdx}-${score}`);
+            if (selectedBtn) selectedBtn.classList.add('selected');
         }
 
         document.getElementById('submit-btn').onclick = function() {
@@ -158,8 +159,18 @@
                 const score = answers[idx];
                 const char1 = q.type[0];
                 const char2 = q.type[1];
-                if (score > 0) scores[char1] += Math.abs(score);
-                else if (score < 0) scores[char2] += Math.abs(score);
+                
+                // score가 양수면 질문의 type 중 첫 번째 글자(예: E)에 합산
+                // score가 음수면 질문의 type 중 두 번째 글자(예: I)에 합산
+                if (score > 0) {
+                    scores[char1] += Math.abs(score);
+                } else if (score < 0) {
+                    scores[char2] += Math.abs(score);
+                } else {
+                    // 0점인 경우 양쪽 지표에 0.5점씩 균등 배분하여 편향 방지
+                    scores[char1] += 0.5;
+                    scores[char2] += 0.5;
+                }
             });
 
             let result = "";
@@ -179,7 +190,11 @@
         }
 
         window.closeModal = function() {
-            location.reload();
+            // 초기화 후 다시 시작
+            answers.fill(null);
+            document.getElementById('result-modal').classList.add('hidden');
+            renderQuestions();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         renderQuestions();
