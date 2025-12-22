@@ -144,7 +144,8 @@ def main():
             
             # Show Results
             st.balloons()
-            info = mbtiThemes[mbti_result]
+            # Fixed NameError by using mbti_themes instead of mbtiThemes
+            info = mbti_themes[mbti_result]
             
             st.markdown(f"""
                 <div class="result-container" style="border-color: {info['color']};">
