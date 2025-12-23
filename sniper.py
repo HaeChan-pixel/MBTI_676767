@@ -8,7 +8,7 @@ def main():
     st.title("🎯 택티컬 실내 사격장 슈팅")
     st.markdown("""
     ### 조작 방법
-    - **마우스 이동**: 조준선과 총기가 커서를 따라 움직입니다. (감도 조정 완료)
+    - **마우스 이동**: 조준선과 총기가 커서를 따라 움직입니다. (초정밀 감도 적용)
     - **마우스 왼쪽 클릭**: 발사 (총구 화염 이펙트)
     - **마우스 오른쪽 클릭**: 정밀 조준 (줌)
     - **전체화면**: 게임 화면 우측 상단의 'FULLSCREEN' 버튼을 클릭하세요.
@@ -41,30 +41,45 @@ def main():
                 border-radius: 0;
             }
             canvas { display: block; width: 100%; height: 100%; }
-            #ui { position: absolute; top: 15px; left: 15px; color: #fff; text-shadow: 0 0 10px #00f2ff; font-size: 26px; font-weight: bold; pointer-events: none; z-index: 10; font-family: 'Courier New', Courier, monospace; font-style: italic; }
+            #ui { 
+                position: absolute; 
+                top: 20px; 
+                left: 20px; 
+                color: #00f2ff; 
+                text-shadow: 0 0 15px rgba(0, 242, 255, 0.7); 
+                font-size: 32px; 
+                font-weight: 900; 
+                pointer-events: none; 
+                z-index: 10; 
+                font-family: 'Courier New', Courier, monospace; 
+                letter-spacing: 2px;
+            }
             #fullscreen-btn {
                 position: absolute;
-                top: 15px;
-                right: 15px;
-                background: rgba(0, 242, 255, 0.2);
-                border: 1px solid #00f2ff;
+                top: 20px;
+                right: 20px;
+                background: rgba(0, 242, 255, 0.1);
+                border: 1px solid rgba(0, 242, 255, 0.5);
                 color: #00f2ff;
-                padding: 5px 10px;
-                font-size: 12px;
+                padding: 6px 12px;
+                font-size: 11px;
                 cursor: pointer;
                 z-index: 20;
                 border-radius: 4px;
                 font-family: 'monospace';
+                text-transform: uppercase;
+                transition: all 0.2s;
             }
             #fullscreen-btn:hover {
-                background: rgba(0, 242, 255, 0.4);
+                background: rgba(0, 242, 255, 0.3);
+                border-color: #00f2ff;
             }
         </style>
     </head>
     <body oncontextmenu="return false;">
         <div id="game-container">
             <div id="ui">SCORE: <span id="score">0000</span></div>
-            <button id="fullscreen-btn">GO FULLSCREEN</button>
+            <button id="fullscreen-btn">Fullscreen</button>
             <canvas id="gameCanvas" width="800" height="600"></canvas>
         </div>
 
@@ -81,35 +96,33 @@ def main():
             let flashOpacity = 0; 
             let recoilOffset = 0; 
             
-            // 마우스 현재 위치 (조준점)
+            // 마우스 현재 위치
             let mouseX = 400;
             let mouseY = 300;
+            // 부드러운 움직임을 위한 보간용 위치
+            let lerpX = 400;
+            let lerpY = 300;
             
-            // 감도 설정 (기존보다 낮춤)
-            const SENSITIVITY = 0.5; 
+            // 감도 보정 계수 (낮을수록 부드럽고 묵직함)
+            const SENSITIVITY_LERP = 0.15; 
             const TARGET_DURATION = 4000;
-            const ZOOM_FACTOR = 1.8;
 
             // 전체화면 기능
             fsBtn.addEventListener('click', () => {
                 if (!document.fullscreenElement) {
                     container.requestFullscreen().catch(err => {
-                        console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+                        console.log(`Error: ${err.message}`);
                     });
                 } else {
                     document.exitFullscreen();
                 }
             });
 
-            // 마우스 위치 업데이트 (감도 보정 적용)
             canvas.addEventListener('mousemove', (e) => {
                 const rect = canvas.getBoundingClientRect();
-                // 전체화면 여부에 따른 스케일 계산
                 const scaleX = canvas.width / rect.width;
                 const scaleY = canvas.height / rect.height;
                 
-                // 감도를 낮추기 위해 이전 위치에서 서서히 따라가게 하거나 
-                // 단순히 위치를 부드럽게 보간할 수 있지만, 여기서는 좌표 계산 시 스케일을 정확히 맞춤
                 mouseX = (e.clientX - rect.left) * scaleX;
                 mouseY = (e.clientY - rect.top) * scaleY;
             });
@@ -121,7 +134,7 @@ def main():
 
             function fire() {
                 flashOpacity = 1.0; 
-                recoilOffset = 50; 
+                recoilOffset = 55; 
                 checkHit();
             }
 
@@ -152,6 +165,8 @@ def main():
             function drawTargetBoard(x, y, r) {
                 ctx.save();
                 ctx.translate(x, y);
+                
+                // 타겟 본체
                 ctx.fillStyle = "#e0e0e0";
                 ctx.beginPath();
                 ctx.moveTo(-r*0.5, r);
@@ -159,134 +174,158 @@ def main():
                 ctx.quadraticCurveTo(0, -r*1.5, r*0.7, -r*0.5);
                 ctx.lineTo(r*0.5, r);
                 ctx.fill();
-                ctx.strokeStyle = "#999";
+                
+                // 타겟 내부 선
+                ctx.strokeStyle = "#bbb";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, -r*0.3, r*0.4, 0, Math.PI*2);
                 ctx.stroke();
+                
                 ctx.restore();
             }
 
             function drawRangeBackground() {
-                // 바닥
-                ctx.fillStyle = "#1e1e1e";
+                // 바닥 (콘크리트)
+                ctx.fillStyle = "#1a1a1a";
                 ctx.fillRect(0, 350, 800, 250);
                 // 천장
-                ctx.fillStyle = "#2a2a2a";
+                ctx.fillStyle = "#252525";
                 ctx.fillRect(0, 0, 800, 150);
-                // 벽면
-                ctx.fillStyle = "#333";
+                // 정면 벽
+                ctx.fillStyle = "#2c2c2c";
                 ctx.fillRect(0, 150, 800, 200);
 
-                // 네온 장식
+                // 네온 효과 장식
                 ctx.strokeStyle = "#00f2ff";
-                ctx.lineWidth = 4;
+                ctx.lineWidth = 3;
                 ctx.shadowBlur = 15;
                 ctx.shadowColor = "#00f2ff";
+                
+                // 좌측 라인
                 ctx.beginPath();
-                ctx.moveTo(0, 350); ctx.lineTo(200, 350); ctx.lineTo(200, 150);
+                ctx.moveTo(0, 350); ctx.lineTo(180, 350); ctx.lineTo(180, 150);
                 ctx.stroke();
+                
+                // 우측 라인
                 ctx.beginPath();
-                ctx.moveTo(800, 350); ctx.lineTo(600, 350); ctx.lineTo(600, 150);
+                ctx.moveTo(800, 350); ctx.lineTo(620, 350); ctx.lineTo(620, 150);
                 ctx.stroke();
+                
                 ctx.shadowBlur = 0;
             }
 
             function drawHandsAndGun() {
+                // 마우스 위치로 서서히 이동 (감도 완화)
+                lerpX += (mouseX - lerpX) * SENSITIVITY_LERP;
+                lerpY += (mouseY - lerpY) * SENSITIVITY_LERP;
+
                 ctx.save();
                 
-                // 부드러운 움직임을 위해 보간 적용 (감도 체감 낮춤)
-                const dx = mouseX - 400;
-                const dy = mouseY - 600;
+                const dx = lerpX - 400;
+                const dy = lerpY - 600;
                 const angle = Math.atan2(dy, dx) + Math.PI / 2;
 
-                const gx = 400 + (dx * 0.08); 
-                const gy = 600 - recoilOffset + (dy * 0.04);
+                // 총기 위치 (마우스 방향으로 살짝 이동)
+                const gx = 400 + (dx * 0.05); 
+                const gy = 600 - recoilOffset + (dy * 0.03);
 
                 ctx.translate(gx, gy);
-                ctx.rotate(angle * 0.45); 
+                ctx.rotate(angle * 0.4); 
 
-                // 소매
-                ctx.fillStyle = "#0a0a0a";
-                ctx.fillRect(-150, 0, 80, 200);
-                ctx.fillRect(70, 0, 80, 200);
+                if(isZoomed) ctx.globalAlpha = 0.2;
 
-                // 손
-                ctx.fillStyle = "#d2b48c";
+                // 소매 (전술복)
+                ctx.fillStyle = "#050505";
+                ctx.fillRect(-140, 0, 70, 250);
+                ctx.fillRect(70, 0, 70, 250);
+
+                // 손 (파지법)
+                ctx.fillStyle = "#c69c6d";
                 ctx.beginPath();
-                ctx.ellipse(-40, -20, 40, 70, -0.2, 0, Math.PI*2);
+                ctx.ellipse(-35, -15, 35, 65, -0.2, 0, Math.PI*2);
                 ctx.fill();
                 ctx.beginPath();
-                ctx.ellipse(40, -20, 40, 70, 0.2, 0, Math.PI*2);
+                ctx.ellipse(35, -15, 35, 65, 0.2, 0, Math.PI*2);
                 ctx.fill();
 
-                // 권총
-                ctx.fillStyle = "#1a1a1a";
-                ctx.fillRect(-30, -140, 60, 120);
+                // 권총 몸체
+                ctx.fillStyle = "#151515";
+                ctx.fillRect(-28, -135, 56, 115);
                 ctx.fillStyle = "#000";
-                ctx.fillRect(-33, -145, 66, 40);
+                ctx.fillRect(-31, -140, 62, 35); // 슬라이드 상단
                 
-                // 가늠쇠
+                // 가늠쇠 포인트
                 ctx.fillStyle = "#fff";
-                ctx.fillRect(-2, -150, 4, 6);
+                ctx.fillRect(-2, -145, 4, 6);
 
                 ctx.restore();
                 
-                // 조준선
+                // 조준선 (마우스 실제 위치)
                 ctx.save();
                 ctx.translate(mouseX, mouseY);
-                if(isZoomed) ctx.scale(1.5, 1.5);
+                if(isZoomed) ctx.scale(1.4, 1.4);
 
                 ctx.strokeStyle = "#00f2ff";
                 ctx.lineWidth = 3;
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = "#00f2ff";
                 
+                // 원형 조준망
                 ctx.beginPath();
-                ctx.arc(0, 0, 40, 0, Math.PI*2);
+                ctx.arc(0, 0, 38, 0, Math.PI*2);
                 ctx.stroke();
                 
+                // 십자선
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.moveTo(-50, 0); ctx.lineTo(-10, 0);
-                ctx.moveTo(50, 0); ctx.lineTo(10, 0);
-                ctx.moveTo(0, -50); ctx.lineTo(0, -10);
-                ctx.moveTo(0, 50); ctx.lineTo(0, 10);
+                ctx.moveTo(-45, 0); ctx.lineTo(-8, 0);
+                ctx.moveTo(45, 0); ctx.lineTo(8, 0);
+                ctx.moveTo(0, -45); ctx.lineTo(0, -8);
+                ctx.moveTo(0, 45); ctx.lineTo(0, 8);
                 ctx.stroke();
 
+                // 중앙 도트
                 ctx.fillStyle = "red";
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = "red";
                 ctx.beginPath();
-                ctx.arc(0, 0, 3, 0, Math.PI*2);
+                ctx.arc(0, 0, 2.5, 0, Math.PI*2);
                 ctx.fill();
                 
                 ctx.restore();
 
-                if (recoilOffset > 0) recoilOffset *= 0.8;
+                if (recoilOffset > 0) recoilOffset *= 0.82;
             }
 
             function drawMuzzleFlash() {
                 if (flashOpacity <= 0) return;
                 ctx.save();
-                const dx = mouseX - 400;
-                const dy = mouseY - 600;
-                const fx = 400 + (dx * 0.3);
-                const fy = 600 + (dy * 0.5) - recoilOffset;
+                
+                // 현재 총구의 가변 위치 계산
+                const dx = lerpX - 400;
+                const dy = lerpY - 600;
+                const fx = 400 + (dx * 0.2);
+                const fy = 600 + (dy * 0.4) - recoilOffset;
 
-                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, 120);
-                grad.addColorStop(0, `rgba(255, 255, 200, ${flashOpacity})`);
-                grad.addColorStop(0.4, `rgba(255, 150, 50, ${flashOpacity * 0.8})`);
+                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, 130);
+                grad.addColorStop(0, `rgba(255, 255, 220, ${flashOpacity})`);
+                grad.addColorStop(0.3, `rgba(255, 180, 50, ${flashOpacity * 0.7})`);
                 grad.addColorStop(1, "rgba(255, 100, 0, 0)");
                 
                 ctx.fillStyle = grad;
                 ctx.globalCompositeOperation = "lighter";
                 ctx.beginPath();
-                ctx.arc(fx, fy, 120, 0, Math.PI*2);
+                ctx.arc(fx, fy, 130, 0, Math.PI*2);
                 ctx.fill();
                 
                 ctx.restore();
-                flashOpacity -= 0.15;
+                flashOpacity -= 0.12;
             }
 
             function gameLoop() {
                 const now = Date.now();
-                if (now - lastTargetTime > 1500) {
+                if (now - lastTargetTime > 1400) {
                     createTarget();
                     lastTargetTime = now;
                 }
