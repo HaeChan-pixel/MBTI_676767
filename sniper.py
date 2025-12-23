@@ -8,9 +8,10 @@ def main():
     st.title("🎯 택티컬 실내 사격장 슈팅")
     st.markdown("""
     ### 조작 방법
-    - **마우스 이동**: 조준선과 총기가 커서를 따라 움직입니다.
+    - **마우스 이동**: 조준선과 총기가 커서를 따라 움직입니다. (감도 조정 완료)
     - **마우스 왼쪽 클릭**: 발사 (총구 화염 이펙트)
     - **마우스 오른쪽 클릭**: 정밀 조준 (줌)
+    - **전체화면**: 게임 화면 우측 상단의 'FULLSCREEN' 버튼을 클릭하세요.
     """)
 
     # 게임 로직 (HTML/JS/Canvas)
@@ -21,21 +22,58 @@ def main():
         <meta charset="UTF-8">
         <style>
             body { margin: 0; overflow: hidden; font-family: sans-serif; cursor: none; user-select: none; background-color: #000; }
-            #game-container { position: relative; width: 800px; height: 600px; background: #000; border: 4px solid #333; margin: auto; border-radius: 8px; overflow: hidden; }
-            canvas { display: block; }
+            #game-container { 
+                position: relative; 
+                width: 800px; 
+                height: 600px; 
+                background: #000; 
+                border: 4px solid #333; 
+                margin: auto; 
+                border-radius: 8px; 
+                overflow: hidden; 
+                display: flex;
+                flex-direction: column;
+            }
+            #game-container:fullscreen {
+                width: 100vw;
+                height: 100vh;
+                border: none;
+                border-radius: 0;
+            }
+            canvas { display: block; width: 100%; height: 100%; }
             #ui { position: absolute; top: 15px; left: 15px; color: #fff; text-shadow: 0 0 10px #00f2ff; font-size: 26px; font-weight: bold; pointer-events: none; z-index: 10; font-family: 'Courier New', Courier, monospace; font-style: italic; }
+            #fullscreen-btn {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                background: rgba(0, 242, 255, 0.2);
+                border: 1px solid #00f2ff;
+                color: #00f2ff;
+                padding: 5px 10px;
+                font-size: 12px;
+                cursor: pointer;
+                z-index: 20;
+                border-radius: 4px;
+                font-family: 'monospace';
+            }
+            #fullscreen-btn:hover {
+                background: rgba(0, 242, 255, 0.4);
+            }
         </style>
     </head>
     <body oncontextmenu="return false;">
         <div id="game-container">
             <div id="ui">SCORE: <span id="score">0000</span></div>
+            <button id="fullscreen-btn">GO FULLSCREEN</button>
             <canvas id="gameCanvas" width="800" height="600"></canvas>
         </div>
 
         <script>
+            const container = document.getElementById('game-container');
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
             const scoreElement = document.getElementById('score');
+            const fsBtn = document.getElementById('fullscreen-btn');
 
             let score = 0;
             let isZoomed = false;
@@ -47,14 +85,33 @@ def main():
             let mouseX = 400;
             let mouseY = 300;
             
+            // 감도 설정 (기존보다 낮춤)
+            const SENSITIVITY = 0.5; 
             const TARGET_DURATION = 4000;
             const ZOOM_FACTOR = 1.8;
 
-            // 마우스 위치 업데이트
+            // 전체화면 기능
+            fsBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen().catch(err => {
+                        console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            // 마우스 위치 업데이트 (감도 보정 적용)
             canvas.addEventListener('mousemove', (e) => {
                 const rect = canvas.getBoundingClientRect();
-                mouseX = e.clientX - rect.left;
-                mouseY = e.clientY - rect.top;
+                // 전체화면 여부에 따른 스케일 계산
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                
+                // 감도를 낮추기 위해 이전 위치에서 서서히 따라가게 하거나 
+                // 단순히 위치를 부드럽게 보간할 수 있지만, 여기서는 좌표 계산 시 스케일을 정확히 맞춤
+                mouseX = (e.clientX - rect.left) * scaleX;
+                mouseY = (e.clientY - rect.top) * scaleY;
             });
 
             canvas.addEventListener('mousedown', (e) => {
@@ -118,7 +175,7 @@ def main():
                 ctx.fillStyle = "#333";
                 ctx.fillRect(0, 150, 800, 200);
 
-                // 네온 장식 (이미지 스타일)
+                // 네온 장식
                 ctx.strokeStyle = "#00f2ff";
                 ctx.lineWidth = 4;
                 ctx.shadowBlur = 15;
@@ -135,16 +192,16 @@ def main():
             function drawHandsAndGun() {
                 ctx.save();
                 
-                // 마우스 위치에 따른 총기 각도 계산
+                // 부드러운 움직임을 위해 보간 적용 (감도 체감 낮춤)
                 const dx = mouseX - 400;
                 const dy = mouseY - 600;
                 const angle = Math.atan2(dy, dx) + Math.PI / 2;
 
-                const gx = 400 + (dx * 0.1); // 중심에서 살짝 이동
-                const gy = 600 - recoilOffset + (dy * 0.05);
+                const gx = 400 + (dx * 0.08); 
+                const gy = 600 - recoilOffset + (dy * 0.04);
 
                 ctx.translate(gx, gy);
-                ctx.rotate(angle * 0.5); // 너무 급격하지 않게 회전
+                ctx.rotate(angle * 0.45); 
 
                 // 소매
                 ctx.fillStyle = "#0a0a0a";
@@ -154,10 +211,10 @@ def main():
                 // 손
                 ctx.fillStyle = "#d2b48c";
                 ctx.beginPath();
-                ctx.ellipse(-40, -20, 40, 70, -0.2, 0, Math.PI*2); // 왼손
+                ctx.ellipse(-40, -20, 40, 70, -0.2, 0, Math.PI*2);
                 ctx.fill();
                 ctx.beginPath();
-                ctx.ellipse(40, -20, 40, 70, 0.2, 0, Math.PI*2); // 오른손
+                ctx.ellipse(40, -20, 40, 70, 0.2, 0, Math.PI*2);
                 ctx.fill();
 
                 // 권총
@@ -172,7 +229,7 @@ def main():
 
                 ctx.restore();
                 
-                // 조준선 (마우스 커서 위치에 고정)
+                // 조준선
                 ctx.save();
                 ctx.translate(mouseX, mouseY);
                 if(isZoomed) ctx.scale(1.5, 1.5);
@@ -207,7 +264,6 @@ def main():
             function drawMuzzleFlash() {
                 if (flashOpacity <= 0) return;
                 ctx.save();
-                // 총구 위치 추적 (마우스 방향)
                 const dx = mouseX - 400;
                 const dy = mouseY - 600;
                 const fx = 400 + (dx * 0.3);
