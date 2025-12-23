@@ -68,6 +68,12 @@ def main():
                     const sens = isZoomed ? ZOOM_SENSITIVITY : SENSITIVITY;
                     view.x -= e.movementX * sens;
                     view.y -= e.movementY * sens;
+                    
+                    // 시야 제한 (너무 멀리 돌아가지 않도록)
+                    if (view.x > 800) view.x = 800;
+                    if (view.x < -800) view.x = -800;
+                    if (view.y > 400) view.y = 400;
+                    if (view.y < -400) view.y = -400;
                 }
             });
 
@@ -82,7 +88,7 @@ def main():
             window.addEventListener('mousedown', (e) => {
                 if (document.pointerLockElement === canvas && e.button === 0) { 
                     flashOpacity = 1.0; 
-                    recoilOffset = 30; 
+                    recoilOffset = 40; // 반동 적용
                     checkHit();
                     
                     if (isZoomed) {
@@ -92,8 +98,7 @@ def main():
             });
 
             function createTarget() {
-                // 타겟은 절대 좌표계에 생성됨
-                const x = Math.random() * 1200 - 600;
+                const x = Math.random() * 1400 - 700;
                 const y = Math.random() * 200 + 50; 
                 targets.push({
                     x: x,
@@ -104,10 +109,8 @@ def main():
             }
 
             function checkHit() {
-                // 조준선 중심(화면 중앙)과 타겟의 상대적 렌더링 위치 비교
                 for (let i = targets.length - 1; i >= 0; i--) {
                     const t = targets[i];
-                    // 현재 시야에 따른 타겟의 화면상 위치 계산
                     let tx = t.x + view.x + centerX;
                     let ty = t.y + view.y + centerY;
 
@@ -155,21 +158,22 @@ def main():
                 ctx.beginPath();
                 ctx.arc(-r * 0.25, -r * 0.8, r * 0.12, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.beginPath();
                 ctx.arc(r * 0.25, -r * 0.8, r * 0.12, 0, Math.PI * 2);
                 ctx.fill();
 
                 ctx.restore();
             }
 
-            function drawValorantBackground() {
+            function drawBackground() {
                 ctx.save();
                 ctx.translate(view.x, view.y);
 
-                // 배경 하늘/천장
+                // 배경 하늘
                 ctx.fillStyle = "#1e272e";
                 ctx.fillRect(-2000, -1000, 4000, 1300);
                 
-                // 정면 구조물
+                // 정면 벽
                 ctx.fillStyle = "#2f3640";
                 ctx.fillRect(-2000, 0, 4000, 300);
                 
@@ -184,12 +188,9 @@ def main():
                 ctx.fillStyle = "#353b48";
                 ctx.fillRect(-2000, 300, 4000, 2000);
                 
-                // 바닥 라인
-                ctx.strokeStyle = "#e1b12c";
-                ctx.lineWidth = 5;
-                ctx.beginPath();
-                ctx.moveTo(-2000, 300); ctx.lineTo(2000, 300);
-                ctx.stroke();
+                // 바닥 안전선
+                ctx.fillStyle = "#e1b12c";
+                ctx.fillRect(-2000, 300, 4000, 10);
 
                 ctx.restore();
             }
@@ -197,19 +198,18 @@ def main():
             function drawMuzzleFlash() {
                 if (flashOpacity <= 0) return;
                 ctx.save();
-                // 1인칭 시점에서는 항상 중앙 근처에서 발생
                 const fx = centerX;
-                const fy = centerY + recoilOffset;
-                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, isZoomed ? 60 : 100);
+                const fy = centerY + (isZoomed ? 0 : 80) - recoilOffset;
+                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, isZoomed ? 80 : 120);
                 grad.addColorStop(0, `rgba(255, 255, 180, ${flashOpacity})`);
                 grad.addColorStop(0.4, `rgba(255, 150, 0, ${flashOpacity * 0.7})`);
                 grad.addColorStop(1, `rgba(255, 50, 0, 0)`);
                 ctx.fillStyle = grad;
                 ctx.beginPath();
-                ctx.arc(fx, fy, isZoomed ? 60 : 100, 0, Math.PI * 2);
+                ctx.arc(fx, fy, isZoomed ? 80 : 120, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
-                flashOpacity -= 0.15; 
+                flashOpacity -= 0.1; 
             }
 
             function drawGun() {
@@ -236,49 +236,51 @@ def main():
                     ctx.arc(centerX, centerY, 2, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
-                    // 1인칭 AWM 렌더링 (사용자가 들고 있는 모습)
+                    // 1인칭 AWM 렌더링
                     const gx = centerX;
-                    const gy = 600 + recoilOffset;
+                    const gy = 600 - recoilOffset;
 
-                    // 총 몸통 (원근감 있는 1인칭 시점)
-                    ctx.shadowBlur = 30;
+                    ctx.shadowBlur = 20;
                     ctx.shadowColor = "black";
                     
-                    // 개머리판 및 몸체 하단
+                    // 총 몸체
                     ctx.fillStyle = "#3d441a"; 
                     ctx.beginPath();
-                    ctx.moveTo(gx - 100, 600);
-                    ctx.lineTo(gx - 40, 420);
-                    ctx.lineTo(gx + 120, 420);
-                    ctx.lineTo(gx + 200, 600);
+                    ctx.moveTo(gx - 120, 600);
+                    ctx.lineTo(gx - 50, 450);
+                    ctx.lineTo(gx + 130, 450);
+                    ctx.lineTo(gx + 220, 600);
                     ctx.fill();
 
-                    // 총열 상단 및 스코프 뭉치
+                    // 총열 상단
                     ctx.fillStyle = "#2c3111";
                     ctx.beginPath();
-                    ctx.moveTo(gx - 30, 420);
-                    ctx.lineTo(gx - 10, 360); // 총구 쪽으로 좁아짐
-                    ctx.lineTo(gx + 10, 360);
-                    ctx.lineTo(gx + 30, 420);
+                    ctx.moveTo(gx - 40, 450);
+                    ctx.lineTo(gx - 15, 380);
+                    ctx.lineTo(gx + 15, 380);
+                    ctx.lineTo(gx + 40, 450);
                     ctx.fill();
 
-                    // 거대한 스코프 몸체
+                    // 스코프 뭉치
                     ctx.fillStyle = "#111";
                     ctx.beginPath();
-                    ctx.roundRect(gx - 40, 365, 80, 60, 10);
+                    ctx.roundRect(gx - 45, 385, 90, 65, 10);
                     ctx.fill();
                     
-                    // 스코프 렌즈 (중앙 정렬됨)
-                    ctx.strokeStyle = "#222";
-                    ctx.lineWidth = 5;
-                    ctx.beginPath();
-                    ctx.arc(gx, 395, 25, 0, Math.PI * 2);
-                    ctx.stroke();
+                    // 스코프 렌즈
                     ctx.fillStyle = "#0a0a0a";
+                    ctx.beginPath();
+                    ctx.arc(gx, 415, 28, 0, Math.PI * 2);
                     ctx.fill();
+                    ctx.strokeStyle = "#222";
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
                 }
                 ctx.restore();
-                if (recoilOffset > 0) recoilOffset *= 0.8;
+                
+                // 반동 회복
+                if (recoilOffset > 0) recoilOffset *= 0.85;
+                if (recoilOffset < 0.1) recoilOffset = 0;
             }
 
             function gameLoop() {
@@ -291,10 +293,8 @@ def main():
 
                 ctx.clearRect(0, 0, 800, 600);
                 
-                // 배경 그리기 (카메라 이동 반영)
-                drawValorantBackground();
+                drawBackground();
 
-                // 타겟 그리기 (카메라 이동 반영)
                 targets.forEach(t => {
                     let tx = t.x + view.x + centerX;
                     let ty = t.y + view.y + centerY;
@@ -310,7 +310,7 @@ def main():
                 drawMuzzleFlash();
                 drawGun();
                 
-                // 조준점 (지향 사격 시 커서 대신 중앙 도트)
+                // 지향 사격 조준점
                 if (!isZoomed && document.pointerLockElement === canvas) {
                     ctx.fillStyle = "rgba(0, 255, 204, 0.5)";
                     ctx.beginPath();
