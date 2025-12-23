@@ -8,9 +8,10 @@ def main():
     st.title("🎯 1인칭 스나이퍼 저격 게임 (AWM Edition)")
     st.markdown("""
     ### 조작 방법
-    - **마우스 왼쪽 클릭**: 발사 (발사 후 조준이 해제됩니다)
-    - **마우스 오른쪽 클릭**: 줌 인/아웃 (AWM 전용 스코프)
-    - **목표**: 디테일해진 로봇 표적을 맞추어 높은 점수를 기록하세요!
+    - **화면 클릭**: 게임 시작 (마우스 커서 고정)
+    - **마우스 왼쪽 클릭**: 발사 (발사 후 조준 해제)
+    - **마우스 오른쪽 클릭**: 줌 인/아웃
+    - **ESC**: 마우스 커서 해제
     """)
 
     # 게임 로직 (HTML/JS/Canvas)
@@ -20,15 +21,17 @@ def main():
     <head>
         <meta charset="UTF-8">
         <style>
-            body { margin: 0; overflow: hidden; font-family: sans-serif; cursor: crosshair; user-select: none; background-color: #000; }
+            body { margin: 0; overflow: hidden; font-family: sans-serif; cursor: none; user-select: none; background-color: #000; }
             #game-container { position: relative; width: 800px; height: 600px; background: #2c3e50; border: 5px solid #1a1a1a; margin: auto; border-radius: 10px; overflow: hidden; }
             canvas { display: block; }
             #ui { position: absolute; top: 15px; left: 15px; color: #00ffcc; text-shadow: 2px 2px 4px #000; font-size: 28px; font-weight: bold; pointer-events: none; z-index: 10; font-family: 'Courier New', Courier, monospace; }
+            #msg { position: absolute; bottom: 10px; width: 100%; text-align: center; color: white; font-size: 14px; pointer-events: none; }
         </style>
     </head>
     <body oncontextmenu="return false;">
         <div id="game-container">
             <div id="ui">SCORE: <span id="score">0</span></div>
+            <div id="msg">화면을 클릭하여 조준을 시작하세요 (ESC로 해제)</div>
             <canvas id="gameCanvas" width="800" height="600"></canvas>
         </div>
 
@@ -42,59 +45,56 @@ def main():
             let targets = [];
             let flashOpacity = 0; 
             let recoilOffset = 0; 
-            const mouse = { x: 400, y: 300 };
-            const actualMouse = { x: 400, y: 300 }; // 감도 조절을 위한 실제 마우스 좌표
-            let lastTargetTime = 0;
-            const TARGET_DURATION = 3000;
             
-            // 조준경 배율 하향 조정 (기존 1.4 -> 1.25)
+            // 화면 중앙 고정 좌표
+            const centerX = 400;
+            const centerY = 300;
+            
+            // 시야(카메라) 위치 - 마우스 이동에 따라 변함
+            const view = { x: 0, y: 0 };
+            
+            const TARGET_DURATION = 3000;
             const ZOOM_FACTOR = 1.25;
-            // 줌 상태 감도 (0.5 = 50% 감도)
-            const ZOOM_SENSITIVITY = 0.6;
+            const SENSITIVITY = 0.5;
+            const ZOOM_SENSITIVITY = 0.2;
 
-            window.addEventListener('mousemove', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const newX = e.clientX - rect.left;
-                const newY = e.clientY - rect.top;
+            // 포인터 락 설정 (커서 고정)
+            canvas.addEventListener('click', () => {
+                canvas.requestPointerLock();
+            });
 
-                if (isZoomed) {
-                    // 줌 상태일 때는 이동 거리를 제한하여 감도를 낮춤
-                    const dx = newX - actualMouse.x;
-                    const dy = newY - actualMouse.y;
-                    mouse.x += dx * ZOOM_SENSITIVITY;
-                    mouse.y += dy * ZOOM_SENSITIVITY;
-                } else {
-                    mouse.x = newX;
-                    mouse.y = newY;
+            document.addEventListener('mousemove', (e) => {
+                if (document.pointerLockElement === canvas) {
+                    const sens = isZoomed ? ZOOM_SENSITIVITY : SENSITIVITY;
+                    view.x -= e.movementX * sens;
+                    view.y -= e.movementY * sens;
                 }
-                actualMouse.x = newX;
-                actualMouse.y = newY;
             });
 
             window.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                isZoomed = !isZoomed;
+                if (document.pointerLockElement === canvas) {
+                    isZoomed = !isZoomed;
+                }
                 return false;
             });
 
             window.addEventListener('mousedown', (e) => {
-                if (e.button === 0) { 
+                if (document.pointerLockElement === canvas && e.button === 0) { 
                     flashOpacity = 1.0; 
-                    recoilOffset = 25; 
+                    recoilOffset = 30; 
                     checkHit();
                     
-                    // 사격 후 볼트 액션 모사를 위해 줌 해제
                     if (isZoomed) {
-                        setTimeout(() => {
-                            isZoomed = false;
-                        }, 100);
+                        setTimeout(() => { isZoomed = false; }, 100);
                     }
                 }
             });
 
             function createTarget() {
-                const x = 100 + Math.random() * 600;
-                const y = 350 + Math.random() * 80; 
+                // 타겟은 절대 좌표계에 생성됨
+                const x = Math.random() * 1200 - 600;
+                const y = Math.random() * 200 + 50; 
                 targets.push({
                     x: x,
                     y: y,
@@ -104,20 +104,19 @@ def main():
             }
 
             function checkHit() {
-                const shootX = isZoomed ? 400 : mouse.x;
-                const shootY = isZoomed ? 300 : mouse.y;
-
+                // 조준선 중심(화면 중앙)과 타겟의 상대적 렌더링 위치 비교
                 for (let i = targets.length - 1; i >= 0; i--) {
                     const t = targets[i];
-                    let tx = t.x;
-                    let ty = t.y;
+                    // 현재 시야에 따른 타겟의 화면상 위치 계산
+                    let tx = t.x + view.x + centerX;
+                    let ty = t.y + view.y + centerY;
 
                     if (isZoomed) {
-                        tx = (t.x - mouse.x) * ZOOM_FACTOR + 400;
-                        ty = (t.y - mouse.y) * ZOOM_FACTOR + 300;
+                        tx = (tx - centerX) * ZOOM_FACTOR + centerX;
+                        ty = (ty - centerY) * ZOOM_FACTOR + centerY;
                     }
 
-                    const dist = Math.sqrt((shootX - tx)**2 + (shootY - ty)**2);
+                    const dist = Math.sqrt((centerX - tx)**2 + (centerY - ty)**2);
                     const hitLimit = t.radius * (isZoomed ? ZOOM_FACTOR : 1.0);
 
                     if (dist < hitLimit) {
@@ -131,225 +130,194 @@ def main():
 
             function drawDetailedRobot(x, y, r) {
                 ctx.save();
+                ctx.translate(x, y);
                 
-                // 그림자
-                ctx.fillStyle = "rgba(0,0,0,0.2)";
-                ctx.beginPath();
-                ctx.ellipse(x, y + r * 1.5, r, r * 0.3, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 몸체 (금속성 느낌)
+                // 몸체
                 ctx.fillStyle = "#576574";
                 ctx.strokeStyle = "#222f3e";
                 ctx.lineWidth = 2;
-                
-                // 가슴/배
                 ctx.beginPath();
-                ctx.roundRect(x - r * 0.8, y - r * 0.2, r * 1.6, r * 1.2, 4);
+                ctx.roundRect(-r * 0.8, -r * 0.2, r * 1.6, r * 1.2, 4);
                 ctx.fill();
                 ctx.stroke();
-
-                // 머리 연결부
-                ctx.fillStyle = "#222f3e";
-                ctx.fillRect(x - r * 0.2, y - r * 0.4, r * 0.4, r * 0.3);
 
                 // 머리
                 ctx.fillStyle = "#8395a7";
                 ctx.beginPath();
-                ctx.roundRect(x - r * 0.6, y - r * 1.2, r * 1.2, r * 0.9, 5);
+                ctx.roundRect(-r * 0.6, -r * 1.2, r * 1.2, r * 0.9, 5);
                 ctx.fill();
                 ctx.stroke();
 
-                // 로봇 눈 (발로란트 봇 느낌 유지)
+                // 눈
                 ctx.fillStyle = "#ff9f43";
                 ctx.shadowBlur = 8;
                 ctx.shadowColor = "#ff9f43";
                 ctx.beginPath();
-                ctx.arc(x - r * 0.25, y - r * 0.8, r * 0.12, 0, Math.PI * 2);
+                ctx.arc(-r * 0.25, -r * 0.8, r * 0.12, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.beginPath();
-                ctx.arc(x + r * 0.25, y - r * 0.8, r * 0.12, 0, Math.PI * 2);
+                ctx.arc(r * 0.25, -r * 0.8, r * 0.12, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.shadowBlur = 0;
-
-                // 안테나
-                ctx.strokeStyle = "#222f3e";
-                ctx.beginPath();
-                ctx.moveTo(x, y - r * 1.2);
-                ctx.lineTo(x + r * 0.4, y - r * 1.6);
-                ctx.stroke();
-                ctx.fillStyle = "red";
-                ctx.beginPath();
-                ctx.arc(x + r * 0.4, y - r * 1.6, r * 0.1, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 팔
-                ctx.fillStyle = "#576574";
-                ctx.fillRect(x - r * 1.1, y, r * 0.3, r * 0.8); // 왼팔
-                ctx.fillRect(x + r * 0.8, y, r * 0.3, r * 0.8); // 오른팔
 
                 ctx.restore();
             }
 
-            function drawTarget(t, zoomedMode = false) {
-                let x = t.x;
-                let y = t.y;
-                let r = t.radius;
-
-                if (zoomedMode) {
-                    x = (t.x - mouse.x) * ZOOM_FACTOR + 400;
-                    y = (t.y - mouse.y) * ZOOM_FACTOR + 300;
-                    r = t.radius * ZOOM_FACTOR;
-                }
-                drawDetailedRobot(x, y, r);
-            }
-
             function drawValorantBackground() {
+                ctx.save();
+                ctx.translate(view.x, view.y);
+
+                // 배경 하늘/천장
                 ctx.fillStyle = "#1e272e";
-                ctx.fillRect(0, 0, 800, 300);
-                ctx.fillStyle = "#2f3640";
-                ctx.fillRect(0, 150, 800, 150);
+                ctx.fillRect(-2000, -1000, 4000, 1300);
                 
+                // 정면 구조물
+                ctx.fillStyle = "#2f3640";
+                ctx.fillRect(-2000, 0, 4000, 300);
+                
+                // 그리드 패턴
                 ctx.strokeStyle = "#3d444d";
-                ctx.lineWidth = 1;
-                for(let i=0; i<800; i+=100) {
-                    ctx.beginPath();
-                    ctx.moveTo(i, 150);
-                    ctx.lineTo(i, 300);
-                    ctx.stroke();
+                ctx.lineWidth = 2;
+                for(let i=-2000; i<2000; i+=200) {
+                    ctx.strokeRect(i, 0, 200, 300);
                 }
 
+                // 바닥
                 ctx.fillStyle = "#353b48";
-                ctx.fillRect(0, 300, 800, 300);
+                ctx.fillRect(-2000, 300, 4000, 2000);
                 
-                ctx.strokeStyle = "#4b525d";
+                // 바닥 라인
+                ctx.strokeStyle = "#e1b12c";
+                ctx.lineWidth = 5;
                 ctx.beginPath();
-                ctx.moveTo(0, 300); ctx.lineTo(100, 600);
-                ctx.moveTo(800, 300); ctx.lineTo(700, 600);
+                ctx.moveTo(-2000, 300); ctx.lineTo(2000, 300);
                 ctx.stroke();
-                
-                ctx.fillStyle = "#e1b12c";
-                ctx.fillRect(0, 300, 800, 5);
-                ctx.fillRect(0, 580, 800, 20);
+
+                ctx.restore();
             }
 
             function drawMuzzleFlash() {
                 if (flashOpacity <= 0) return;
                 ctx.save();
-                const fx = isZoomed ? 400 : 580;
-                const fy = isZoomed ? 300 : 380 + recoilOffset;
-                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, isZoomed ? 60 : 40);
+                // 1인칭 시점에서는 항상 중앙 근처에서 발생
+                const fx = centerX;
+                const fy = centerY + recoilOffset;
+                const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, isZoomed ? 60 : 100);
                 grad.addColorStop(0, `rgba(255, 255, 180, ${flashOpacity})`);
                 grad.addColorStop(0.4, `rgba(255, 150, 0, ${flashOpacity * 0.7})`);
                 grad.addColorStop(1, `rgba(255, 50, 0, 0)`);
                 ctx.fillStyle = grad;
                 ctx.beginPath();
-                ctx.arc(fx, fy, isZoomed ? 60 : 40, 0, Math.PI * 2);
+                ctx.arc(fx, fy, isZoomed ? 60 : 100, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
-                flashOpacity -= 0.1; 
+                flashOpacity -= 0.15; 
             }
 
             function drawGun() {
                 ctx.save();
                 if (isZoomed) {
-                    // 스코프 뷰
-                    ctx.fillStyle = "rgba(0, 0, 0, 0.95)";
+                    // 스코프 모드
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.98)";
                     ctx.beginPath();
-                    ctx.arc(400, 300, 280, 0, Math.PI * 2, true);
+                    ctx.arc(centerX, centerY, 280, 0, Math.PI * 2, true);
                     ctx.rect(0, 0, 800, 600);
                     ctx.fill();
 
-                    // 정밀한 AWM 스타일 조준선
-                    ctx.strokeStyle = "rgba(0, 255, 204, 0.8)";
-                    ctx.lineWidth = 1.5;
+                    // 조준선
+                    ctx.strokeStyle = "#00ffcc";
+                    ctx.lineWidth = 1;
                     ctx.beginPath();
-                    // 가로선
-                    ctx.moveTo(150, 300); ctx.lineTo(650, 300);
-                    // 세로선
-                    ctx.moveTo(400, 50); ctx.lineTo(400, 550);
+                    ctx.moveTo(centerX - 280, centerY); ctx.lineTo(centerX + 280, centerY);
+                    ctx.moveTo(centerX, centerY - 280); ctx.lineTo(centerX, centerY + 280);
                     ctx.stroke();
 
-                    // 거리 측정 눈금 (Mil-dot)
-                    ctx.fillStyle = "#00ffcc";
-                    for(let i = -150; i <= 150; i += 30) {
-                        if(i === 0) continue;
-                        ctx.beginPath();
-                        ctx.arc(400 + i, 300, 2, 0, Math.PI * 2);
-                        ctx.arc(400, 300 + i, 2, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-
-                    // 중앙 정밀 도트
-                    ctx.fillStyle = "#ff3333";
+                    // 중앙 점
+                    ctx.fillStyle = "red";
                     ctx.beginPath();
-                    ctx.arc(400, 300, 3, 0, Math.PI * 2);
+                    ctx.arc(centerX, centerY, 2, 0, Math.PI * 2);
                     ctx.fill();
-
-                    // 스코프 외곽 질감
-                    ctx.strokeStyle = "#0a0a0a";
-                    ctx.lineWidth = 25;
-                    ctx.beginPath();
-                    ctx.arc(400, 300, 280, 0, Math.PI * 2);
-                    ctx.stroke();
                 } else {
-                    // AWM (에땁) 디자인 렌더링
-                    const gx = 620;
-                    const gy = 480 + recoilOffset;
+                    // 1인칭 AWM 렌더링 (사용자가 들고 있는 모습)
+                    const gx = centerX;
+                    const gy = 600 + recoilOffset;
 
-                    // 그림자
-                    ctx.shadowBlur = 20;
+                    // 총 몸통 (원근감 있는 1인칭 시점)
+                    ctx.shadowBlur = 30;
                     ctx.shadowColor = "black";
-
-                    // 총 몸체 (Olive Drab 색상)
-                    ctx.fillStyle = "#4b5320"; // 군용 국방색
+                    
+                    // 개머리판 및 몸체 하단
+                    ctx.fillStyle = "#3d441a"; 
                     ctx.beginPath();
-                    ctx.moveTo(gx + 250, gy + 150);
-                    ctx.lineTo(gx - 180, gy + 80);  // 긴 총열 아래
-                    ctx.lineTo(gx - 180, gy + 60);  // 총구 끝
-                    ctx.lineTo(gx - 50, gy + 50);   // 총열 상단
-                    ctx.lineTo(gx + 50, gy - 20);   // 몸체 상단
-                    ctx.lineTo(gx + 250, gy - 50);
-                    ctx.closePath();
+                    ctx.moveTo(gx - 100, 600);
+                    ctx.lineTo(gx - 40, 420);
+                    ctx.lineTo(gx + 120, 420);
+                    ctx.lineTo(gx + 200, 600);
                     ctx.fill();
 
-                    // 검정색 금속 부품 (방아쇠울, 하단부)
-                    ctx.fillStyle = "#1e1e1e";
-                    ctx.fillRect(gx + 20, gy + 50, 100, 40);
-                    
-                    // 스코프 (AWM 특유의 거대한 조준경)
+                    // 총열 상단 및 스코프 뭉치
+                    ctx.fillStyle = "#2c3111";
+                    ctx.beginPath();
+                    ctx.moveTo(gx - 30, 420);
+                    ctx.lineTo(gx - 10, 360); // 총구 쪽으로 좁아짐
+                    ctx.lineTo(gx + 10, 360);
+                    ctx.lineTo(gx + 30, 420);
+                    ctx.fill();
+
+                    // 거대한 스코프 몸체
                     ctx.fillStyle = "#111";
                     ctx.beginPath();
-                    ctx.roundRect(gx + 20, gy - 60, 140, 45, 5);
+                    ctx.roundRect(gx - 40, 365, 80, 60, 10);
                     ctx.fill();
-                    // 조준경 앞뒤 렌즈 캡 느낌
-                    ctx.fillRect(gx + 15, gy - 65, 20, 55);
-                    ctx.fillRect(gx + 145, gy - 65, 15, 55);
                     
-                    // 총구 브레이크 (AWM 특유의 끝부분)
-                    ctx.fillStyle = "#111";
-                    ctx.fillRect(gx - 200, gy + 55, 30, 30);
+                    // 스코프 렌즈 (중앙 정렬됨)
+                    ctx.strokeStyle = "#222";
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.arc(gx, 395, 25, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.fillStyle = "#0a0a0a";
+                    ctx.fill();
                 }
                 ctx.restore();
-                
-                if (recoilOffset > 0) recoilOffset *= 0.85;
+                if (recoilOffset > 0) recoilOffset *= 0.8;
             }
 
             function gameLoop() {
                 const now = Date.now();
-                if (now - lastTargetTime > 1400) {
+                if (now - lastTargetTime > 1500) {
                     createTarget();
                     lastTargetTime = now;
                 }
                 targets = targets.filter(t => now - t.createdAt < TARGET_DURATION);
 
                 ctx.clearRect(0, 0, 800, 600);
+                
+                // 배경 그리기 (카메라 이동 반영)
                 drawValorantBackground();
-                targets.forEach(t => drawTarget(t, isZoomed));
+
+                // 타겟 그리기 (카메라 이동 반영)
+                targets.forEach(t => {
+                    let tx = t.x + view.x + centerX;
+                    let ty = t.y + view.y + centerY;
+                    let r = t.radius;
+                    if (isZoomed) {
+                        tx = (tx - centerX) * ZOOM_FACTOR + centerX;
+                        ty = (ty - centerY) * ZOOM_FACTOR + centerY;
+                        r *= ZOOM_FACTOR;
+                    }
+                    drawDetailedRobot(tx, ty, r);
+                });
                 
                 drawMuzzleFlash();
                 drawGun();
                 
+                // 조준점 (지향 사격 시 커서 대신 중앙 도트)
+                if (!isZoomed && document.pointerLockElement === canvas) {
+                    ctx.fillStyle = "rgba(0, 255, 204, 0.5)";
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
                 requestAnimationFrame(gameLoop);
             }
 
